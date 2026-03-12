@@ -226,10 +226,9 @@ function attachSecurityHeaders(req, res, next) {
   next();
 }
 
-function createApp(overrides = {}) {
+function configureApp(app, overrides = {}) {
   const config = resolveConfig(overrides);
   const corsMiddleware = createCorsMiddleware(config);
-  const app = express();
 
   app.disable("x-powered-by");
   app.use(attachSecurityHeaders);
@@ -316,7 +315,13 @@ function createApp(overrides = {}) {
   return app;
 }
 
+function createApp(overrides = {}) {
+  const app = express();
+  return configureApp(app, overrides);
+}
+
 module.exports = {
+  configureApp,
   createApp,
   isPrivateHostname,
   resolveConfig,

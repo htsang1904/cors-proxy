@@ -1,9 +1,11 @@
+const express = require("express");
 const { loadEnvFile } = require("./load-env");
-const { createApp } = require("./proxy-app");
+const { configureApp } = require("./proxy-app");
 
 loadEnvFile();
 
-const app = createApp();
+const app = express();
+configureApp(app);
 module.exports = app;
 
 if (require.main === module) {
