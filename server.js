@@ -1,5 +1,5 @@
 const { loadEnvFile } = require("./load-env");
-const { createApp } = require("./app");
+const { createApp } = require("./proxy-app");
 
 loadEnvFile();
 

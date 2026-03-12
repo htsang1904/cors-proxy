@@ -1,7 +1,7 @@
 const assert = require("assert");
 const http = require("http");
 
-const { createApp } = require("../app");
+const { createApp } = require("../proxy-app");
 
 function listen(server) {
   return new Promise((resolve, reject) => {
