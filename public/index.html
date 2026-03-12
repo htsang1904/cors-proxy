@@ -1,61 +1,172 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>CORS Proxy Tester</title>
-  <style>
-    body { font-family: Arial; max-width: 900px; margin: auto; padding: 20px; box-sizing: border-box; }
-    textarea, input, select { width: 100%; margin: 5px 0; padding: 8px; box-sizing: border-box;}
-    button { padding: 10px; margin: 5px 0; width: 100%; }
-    pre { background: #111; color: #0f0; padding: 10px; overflow: auto; }
-  </style>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CORS Proxy Control Room</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
+  <div class="page-shell">
+    <header class="hero">
+      <div class="hero-copy">
+        <p class="eyebrow">Proxy Utility</p>
+        <h1>CORS Proxy Control Room</h1>
+        <p class="lead">
+          Build requests, route them through your local proxy, and inspect the
+          response without guessing what policy is active on the server.
+        </p>
+      </div>
 
-<h2>Test CORS</h2>
+      <section class="card policy-card" aria-labelledby="policy-heading">
+        <div class="card-head">
+          <p class="eyebrow">Runtime Policy</p>
+          <h2 id="policy-heading">Guardrails currently active</h2>
+        </div>
 
-<label>URL</label>
-<input id="url" placeholder="https://api.example.com/users" />
+        <div class="policy-grid" id="policyGrid" aria-live="polite">
+          <article class="policy-pill">
+            <span class="policy-label">CORS</span>
+            <strong class="policy-value">Loading</strong>
+          </article>
+          <article class="policy-pill">
+            <span class="policy-label">Private Nets</span>
+            <strong class="policy-value">Loading</strong>
+          </article>
+          <article class="policy-pill">
+            <span class="policy-label">Allowed Hosts</span>
+            <strong class="policy-value">Loading</strong>
+          </article>
+          <article class="policy-pill">
+            <span class="policy-label">Timeout</span>
+            <strong class="policy-value">Loading</strong>
+          </article>
+        </div>
 
-<label>Method</label>
-<select id="method">
-  <option>GET</option>
-  <option>POST</option>
-  <option>PUT</option>
-  <option>PATCH</option>
-  <option>DELETE</option>
-</select>
+        <p class="microcopy" id="policyNote">
+          Fetching server configuration...
+        </p>
+      </section>
+    </header>
 
-<label>Body (JSON)</label>
-<textarea id="body" rows="6">{}</textarea>
+    <main class="workspace">
+      <section class="card builder-card" aria-labelledby="builder-heading">
+        <div class="card-head">
+          <p class="eyebrow">Request Builder</p>
+          <h2 id="builder-heading">Compose a proxied request</h2>
+        </div>
 
-<button onclick="sendRequest()">Thử ngay</button>
+        <div class="preset-strip" aria-label="Quick presets">
+          <button class="preset-button" type="button" data-preset="public-read">
+            Public GET
+          </button>
+          <button class="preset-button" type="button" data-preset="public-write">
+            Public POST
+          </button>
+          <button class="preset-button" type="button" data-preset="blank">
+            Blank Draft
+          </button>
+        </div>
 
-<h3>Response</h3>
-<pre id="result"></pre>
+        <form id="requestForm" novalidate>
+          <div class="field">
+            <label for="url">Target URL</label>
+            <input
+              id="url"
+              name="url"
+              type="url"
+              autocomplete="off"
+              spellcheck="false"
+              placeholder="https://api.example.com/v1/items?limit=10"
+              required
+            />
+          </div>
 
-<script>
-async function sendRequest() {
-  const url = document.getElementById("url").value;
-  const method = document.getElementById("method").value;
-  const bodyText = document.getElementById("body").value;
+          <div class="field-grid">
+            <div class="field">
+              <label for="method">Method</label>
+              <select id="method" name="method">
+                <option>GET</option>
+                <option>POST</option>
+                <option>PUT</option>
+                <option>PATCH</option>
+                <option>DELETE</option>
+              </select>
+            </div>
 
-  let body;
-  try { body = JSON.parse(bodyText); } catch { body = null; }
+            <div class="field">
+              <label for="headers">Headers (JSON object)</label>
+              <textarea id="headers" name="headers" rows="7" spellcheck="false"></textarea>
+            </div>
+          </div>
 
-  const res = await fetch(
-    "/proxy?url=" + encodeURIComponent(url),
-    {
-      method,
-      headers: { "Content-Type": "application/json" },
-      body: method === "GET" ? null : JSON.stringify(body)
-    }
-  );
+          <div class="field" id="bodyField">
+            <label for="body">Body (JSON)</label>
+            <textarea id="body" name="body" rows="10" spellcheck="false"></textarea>
+            <p class="field-note">
+              The client validates JSON before sending. Empty body is allowed.
+            </p>
+          </div>
 
-  const text = await res.text();
-  document.getElementById("result").textContent = text;
-}
-</script>
+          <div class="action-row">
+            <button class="primary-button" id="sendButton" type="submit">
+              Send Request
+            </button>
+            <button class="secondary-button" id="resetButton" type="button">
+              Reset
+            </button>
+          </div>
 
+          <div class="message" id="formMessage" role="status" aria-live="polite"></div>
+        </form>
+      </section>
+
+      <section class="card console-card" aria-labelledby="console-heading">
+        <div class="card-head card-head-inline">
+          <div>
+            <p class="eyebrow">Response Console</p>
+            <h2 id="console-heading">Inspect what came back</h2>
+          </div>
+
+          <button class="ghost-button" id="copyButton" type="button" disabled>
+            Copy
+          </button>
+        </div>
+
+        <div class="metrics-grid">
+          <article class="metric">
+            <span class="metric-label">Status</span>
+            <strong class="metric-value" id="statusValue">Idle</strong>
+          </article>
+          <article class="metric">
+            <span class="metric-label">Duration</span>
+            <strong class="metric-value" id="durationValue">0 ms</strong>
+          </article>
+          <article class="metric">
+            <span class="metric-label">Content-Type</span>
+            <strong class="metric-value" id="typeValue">n/a</strong>
+          </article>
+          <article class="metric">
+            <span class="metric-label">Size</span>
+            <strong class="metric-value" id="sizeValue">0 B</strong>
+          </article>
+        </div>
+
+        <div class="response-frame">
+          <pre id="responseBody" aria-live="polite">Send a request to see the upstream response.</pre>
+        </div>
+
+        <details class="headers-panel">
+          <summary>Response headers</summary>
+          <pre id="responseHeaders">No response headers yet.</pre>
+        </details>
+      </section>
+    </main>
+  </div>
+
+  <script src="/app.js" defer></script>
 </body>
 </html>
