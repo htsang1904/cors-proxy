@@ -3,9 +3,13 @@ const { createApp } = require("./app");
 
 loadEnvFile();
 
-const PORT = process.env.PORT || 3000;
 const app = createApp();
+module.exports = app;
 
-app.listen(PORT, () => {
-  console.log(`Server running at http://localhost:${PORT}`);
-});
+if (require.main === module) {
+  const PORT = process.env.PORT || 3000;
+
+  app.listen(PORT, () => {
+    console.log(`Server running at http://localhost:${PORT}`);
+  });
+}
