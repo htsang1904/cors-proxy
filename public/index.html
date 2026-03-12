@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>CORS Proxy Tester</title>
+  <style>
+    body { font-family: Arial; max-width: 900px; margin: auto; padding: 20px; box-sizing: border-box; }
+    textarea, input, select { width: 100%; margin: 5px 0; padding: 8px; box-sizing: border-box;}
+    button { padding: 10px; margin: 5px 0; width: 100%; }
+    pre { background: #111; color: #0f0; padding: 10px; overflow: auto; }
+  </style>
+</head>
+<body>
+
+<h2>Test CORS</h2>
+
+<label>URL</label>
+<input id="url" placeholder="https://api.example.com/users" />
+
+<label>Method</label>
+<select id="method">
+  <option>GET</option>
+  <option>POST</option>
+  <option>PUT</option>
+  <option>PATCH</option>
+  <option>DELETE</option>
+</select>
+
+<label>Body (JSON)</label>
+<textarea id="body" rows="6">{}</textarea>
+
+<button onclick="sendRequest()">Thử ngay</button>
+
+<h3>Response</h3>
+<pre id="result"></pre>
+
+<script>
+async function sendRequest() {
+  const url = document.getElementById("url").value;
+  const method = document.getElementById("method").value;
+  const bodyText = document.getElementById("body").value;
+
+  let body;
+  try { body = JSON.parse(bodyText); } catch { body = null; }
+
+  const res = await fetch(
+    "/proxy?url=" + encodeURIComponent(url),
+    {
+      method,
+      headers: { "Content-Type": "application/json" },
+      body: method === "GET" ? null : JSON.stringify(body)
+    }
+  );
+
+  const text = await res.text();
+  document.getElementById("result").textContent = text;
+}
+</script>
+
+</body>
+</html>
