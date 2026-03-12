@@ -146,8 +146,12 @@ function resolveConfig(overrides = {}) {
 }
 
 function createCorsMiddleware(config) {
-  if (!config.corsOrigins.length) {
-    return cors({ origin: false, methods: DEFAULT_METHODS });
+  if (!config.corsOrigins.length || config.corsOrigins.includes("*")) {
+    return cors({
+      methods: DEFAULT_METHODS,
+      origin: true,
+      optionsSuccessStatus: 204,
+    });
   }
 
   return cors({
@@ -240,7 +244,10 @@ function configureApp(app, overrides = {}) {
   app.get("/api/config", (req, res) => {
     res.json({
       allowPrivateNetworks: config.allowPrivateNetworks,
-      corsMode: config.corsOrigins.length ? "allowlist" : "same-origin-only",
+      corsMode:
+        !config.corsOrigins.length || config.corsOrigins.includes("*")
+          ? "reflect-origin"
+          : "allowlist",
       corsOrigins: config.corsOrigins,
       hostAllowlist: config.hostAllowlist,
       timeoutMs: config.timeoutMs,

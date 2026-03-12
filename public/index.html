@@ -103,11 +103,23 @@
             </div>
           </div>
 
+          <div class="field">
+            <label for="bodyType">Body Type</label>
+            <select id="bodyType" name="bodyType">
+              <option value="auto">Auto</option>
+              <option value="json">JSON</option>
+              <option value="form-urlencoded">Form URL Encoded</option>
+              <option value="form-data">Form Data</option>
+              <option value="raw">Raw Text</option>
+            </select>
+          </div>
+
           <div class="field" id="bodyField">
-            <label for="body">Body (JSON)</label>
+            <label for="body">Body</label>
             <textarea id="body" name="body" rows="10" spellcheck="false"></textarea>
             <p class="field-note">
-              The client validates JSON before sending. Empty body is allowed.
+              `Form Data` accepts either a JSON object or newline-separated
+              `key=value` pairs.
             </p>
           </div>
 

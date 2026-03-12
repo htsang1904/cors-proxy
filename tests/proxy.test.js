@@ -102,6 +102,22 @@ async function main() {
     });
   });
 
+  await run("proxy reflects browser origin by default", async () => {
+    await withApp({}, async (port) => {
+      const response = await request({
+        headers: {
+          Origin: "null",
+        },
+        path: "/proxy",
+        port,
+      });
+
+      assert.strictEqual(response.status, 400);
+      assert.strictEqual(response.headers["access-control-allow-origin"], "null");
+      assert.match(response.headers.vary || "", /Origin/);
+    });
+  });
+
   await run("private targets are blocked by default", async () => {
     await withApp({}, async (port) => {
       const response = await request({
@@ -171,6 +187,66 @@ async function main() {
         assert.strictEqual(upstreamMessages.length, 1);
         assert.strictEqual(upstreamMessages[0].method, "POST");
         assert.strictEqual(upstreamMessages[0].url, "/echo?x=1");
+        assert.strictEqual(upstreamMessages[0].body, payload);
+      });
+    } finally {
+      await close(upstreamServer);
+    }
+  });
+
+  await run("proxy forwards multipart form-data body to upstream", async () => {
+    const upstreamMessages = [];
+    const upstreamServer = http.createServer((req, res) => {
+      let raw = "";
+
+      req.on("data", (chunk) => {
+        raw += chunk;
+      });
+
+      req.on("end", () => {
+        upstreamMessages.push({
+          body: raw,
+          headers: req.headers,
+          method: req.method,
+          url: req.url,
+        });
+
+        res.setHeader("Content-Type", "application/json");
+        res.end(JSON.stringify({ ok: true, received: raw.length }));
+      });
+    });
+
+    const upstreamPort = await listen(upstreamServer);
+    const boundary = "----CodexBoundary12345";
+    const payload =
+      `--${boundary}\r\n` +
+      'Content-Disposition: form-data; name="link"\r\n\r\n' +
+      "https://example.com/profile\r\n" +
+      `--${boundary}--\r\n`;
+
+    try {
+      await withApp({ allowPrivateNetworks: true }, async (proxyPort) => {
+        const response = await request({
+          body: payload,
+          headers: {
+            "Content-Length": Buffer.byteLength(payload),
+            "Content-Type": `multipart/form-data; boundary=${boundary}`,
+          },
+          method: "POST",
+          path:
+            "/proxy?url=" +
+            encodeURIComponent(`http://127.0.0.1:${upstreamPort}/submit`),
+          port: proxyPort,
+        });
+
+        assert.strictEqual(response.status, 200);
+        assert.strictEqual(upstreamMessages.length, 1);
+        assert.strictEqual(upstreamMessages[0].method, "POST");
+        assert.strictEqual(upstreamMessages[0].url, "/submit");
+        assert.match(
+          upstreamMessages[0].headers["content-type"],
+          /multipart\/form-data; boundary=----CodexBoundary12345/
+        );
         assert.strictEqual(upstreamMessages[0].body, payload);
       });
     } finally {

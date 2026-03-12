@@ -1,18 +1,21 @@
 const presets = {
   blank: {
     body: "",
+    bodyType: "auto",
     headers: '{\n  "Accept": "application/json"\n}',
     method: "GET",
     url: "",
   },
   "public-read": {
     body: "",
+    bodyType: "auto",
     headers: '{\n  "Accept": "application/json"\n}',
     method: "GET",
     url: "https://jsonplaceholder.typicode.com/todos/1",
   },
   "public-write": {
     body: '{\n  "title": "proxy demo",\n  "completed": false,\n  "userId": 12\n}',
+    bodyType: "json",
     headers: '{\n  "Accept": "application/json",\n  "Content-Type": "application/json"\n}',
     method: "POST",
     url: "https://postman-echo.com/post",
@@ -22,6 +25,7 @@ const presets = {
 const elements = {
   body: document.getElementById("body"),
   bodyField: document.getElementById("bodyField"),
+  bodyType: document.getElementById("bodyType"),
   copyButton: document.getElementById("copyButton"),
   durationValue: document.getElementById("durationValue"),
   form: document.getElementById("requestForm"),
@@ -64,10 +68,30 @@ function setFormMessage(text, tone = "") {
 function updateBodyState() {
   const hasBody = elements.method.value !== "GET";
   elements.body.disabled = !hasBody;
+  elements.bodyType.disabled = !hasBody;
   elements.bodyField.style.opacity = hasBody ? "1" : "0.58";
 
   if (!hasBody) {
     elements.body.placeholder = "GET requests are sent without a body.";
+    return;
+  }
+
+  const bodyType = getSelectedBodyType();
+
+  if (bodyType === "form-data") {
+    elements.body.placeholder =
+      '{\n  "link": "https://example.com"\n}\n\nor\n\nlink=https://example.com';
+    return;
+  }
+
+  if (bodyType === "form-urlencoded") {
+    elements.body.placeholder =
+      '{\n  "link": "https://example.com"\n}\n\nor\n\nlink=https%3A%2F%2Fexample.com';
+    return;
+  }
+
+  if (bodyType === "raw") {
+    elements.body.placeholder = "Paste raw text payload here.";
     return;
   }
 
@@ -82,6 +106,7 @@ function applyPreset(name) {
   elements.method.value = preset.method;
   elements.headers.value = preset.headers;
   elements.body.value = preset.body;
+  elements.bodyType.value = preset.bodyType;
   updateBodyState();
   setFormMessage("Preset loaded.", "success");
 }
@@ -116,6 +141,166 @@ function parseJsonBody(value) {
   } catch (error) {
     throw new Error("Body must be valid JSON.");
   }
+}
+
+function getContentType(headers) {
+  const header =
+    headers["Content-Type"] ||
+    headers["content-type"] ||
+    headers["CONTENT-TYPE"] ||
+    "";
+
+  return String(header).split(";")[0].trim().toLowerCase();
+}
+
+function detectBodyType(headers) {
+  const contentType = getContentType(headers);
+
+  if (contentType === "multipart/form-data") return "form-data";
+  if (contentType === "application/x-www-form-urlencoded") return "form-urlencoded";
+  if (contentType === "text/plain") return "raw";
+  if (!contentType || contentType === "application/json") return "json";
+
+  return "raw";
+}
+
+function getSelectedBodyType(headers = {}) {
+  if (elements.bodyType.value !== "auto") {
+    return elements.bodyType.value;
+  }
+
+  let parsedHeaders = headers;
+  if (!parsedHeaders || typeof parsedHeaders !== "object" || Array.isArray(parsedHeaders)) {
+    parsedHeaders = {};
+  }
+
+  if (!Object.keys(parsedHeaders).length) {
+    try {
+      parsedHeaders = parseJsonObject(elements.headers.value || "{}", "Headers", true);
+    } catch (error) {
+      parsedHeaders = {};
+    }
+  }
+
+  return detectBodyType(parsedHeaders);
+}
+
+function parseFormBody(value) {
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (!parsed || Array.isArray(parsed) || typeof parsed !== "object") {
+      throw new Error("Form body must be a JSON object or raw form string.");
+    }
+
+    const params = new URLSearchParams();
+    Object.entries(parsed).forEach(([key, entryValue]) => {
+      params.append(key, entryValue == null ? "" : String(entryValue));
+    });
+    return params.toString();
+  } catch (error) {
+    if (error.message === "Form body must be a JSON object or raw form string.") {
+      throw error;
+    }
+
+    return trimmed;
+  }
+}
+
+function parseKeyValueLines(value) {
+  const trimmed = value.trim();
+  if (!trimmed) return [];
+
+  return trimmed
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const separatorIndex = line.indexOf("=");
+      if (separatorIndex === -1) {
+        throw new Error("Each form-data line must use `key=value` format.");
+      }
+
+      return [
+        line.slice(0, separatorIndex).trim(),
+        line.slice(separatorIndex + 1).trim(),
+      ];
+    });
+}
+
+function parseFormDataBody(value) {
+  const trimmed = value.trim();
+  const formData = new FormData();
+
+  if (!trimmed) return formData;
+
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (!parsed || Array.isArray(parsed) || typeof parsed !== "object") {
+      throw new Error("Form data body must be a JSON object or key=value lines.");
+    }
+
+    Object.entries(parsed).forEach(([key, entryValue]) => {
+      formData.append(key, entryValue == null ? "" : String(entryValue));
+    });
+    return formData;
+  } catch (error) {
+    if (error.message === "Form data body must be a JSON object or key=value lines.") {
+      throw error;
+    }
+
+    parseKeyValueLines(trimmed).forEach(([key, entryValue]) => {
+      formData.append(key, entryValue);
+    });
+    return formData;
+  }
+}
+
+function buildRequestBody(value, headers) {
+  const bodyType = getSelectedBodyType(headers);
+
+  if (bodyType === "form-urlencoded") {
+    return parseFormBody(value);
+  }
+
+  if (bodyType === "form-data") {
+    return parseFormDataBody(value);
+  }
+
+  if (bodyType === "json") {
+    return parseJsonBody(value);
+  }
+
+  return value.trim();
+}
+
+function normalizeHeadersForBodyType(headers) {
+  const nextHeaders = { ...headers };
+  const bodyType = getSelectedBodyType(headers);
+
+  if (bodyType === "form-data") {
+    delete nextHeaders["Content-Type"];
+    delete nextHeaders["content-type"];
+    delete nextHeaders["CONTENT-TYPE"];
+    return nextHeaders;
+  }
+
+  if (
+    bodyType === "form-urlencoded" &&
+    !nextHeaders["Content-Type"] &&
+    !nextHeaders["content-type"]
+  ) {
+    nextHeaders["Content-Type"] = "application/x-www-form-urlencoded";
+    return nextHeaders;
+  }
+
+  if (bodyType === "json" && !nextHeaders["Content-Type"] && !nextHeaders["content-type"]) {
+    nextHeaders["Content-Type"] = "application/json";
+  }
+
+  return nextHeaders;
 }
 
 function renderResponseMeta(response, duration, rawText) {
@@ -160,7 +345,12 @@ function renderPolicy(config) {
   elements.policyGrid.innerHTML = [
     {
       label: "CORS",
-      value: config.corsMode === "allowlist" ? "Allowlist" : "Same origin",
+      value:
+        config.corsMode === "allowlist"
+          ? "Allowlist"
+          : config.corsMode === "reflect-origin"
+            ? "Reflect origin"
+            : "Same origin",
     },
     {
       label: "Private Nets",
@@ -238,7 +428,7 @@ async function handleSubmit(event) {
   let body = "";
   if (method !== "GET") {
     try {
-      body = parseJsonBody(elements.body.value);
+      body = buildRequestBody(elements.body.value, headers);
     } catch (error) {
       setFormMessage(error.message, "error");
       elements.body.focus();
@@ -246,9 +436,7 @@ async function handleSubmit(event) {
     }
   }
 
-  if (body && !headers["Content-Type"] && !headers["content-type"]) {
-    headers["Content-Type"] = "application/json";
-  }
+  headers = normalizeHeadersForBodyType(headers);
 
   elements.sendButton.disabled = true;
   elements.sendButton.textContent = "Sending...";
@@ -320,6 +508,8 @@ document.querySelectorAll("[data-preset]").forEach((button) => {
 });
 
 elements.method.addEventListener("change", updateBodyState);
+elements.bodyType.addEventListener("change", updateBodyState);
+elements.headers.addEventListener("input", updateBodyState);
 elements.form.addEventListener("submit", handleSubmit);
 elements.copyButton.addEventListener("click", copyResponse);
 elements.resetButton.addEventListener("click", resetForm);
